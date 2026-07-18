@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enveloppes — Budget base zéro</title>
+</head>
+<body>
+<div id="app">
+  <div class="loading" id="loadingScreen">
+    <div class="stamp-spin">✉</div>
+    <p>Ouverture du courrier…</p>
+  </div>
+</div>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #F1EEFB;
+    --card: #FFFFFF;
+    --ink: #241C3D;
+    --ink-soft: #8B82AE;
+    --line: rgba(36,28,61,0.08);
+    --brand: #6C4AE6;
+    --brand-dark: #4E2FD1;
+    --brand-light: #EDE7FE;
+    --danger: #E8524F;
+    --danger-dark: #C43D3A;
+    --warn: #F0A63A;
+    --success: #33C481;
+    --success-dark: #1FA36A;
+  }
+
+  #app[data-theme="dark"] {
+    --bg: #16112A;
+    --card: #211A3B;
+    --ink: #EFEAFB;
+    --ink-soft: #9C92C4;
+    --line: rgba(239,234,251,0.09);
+    --brand: #9077FF;
+    --brand-dark: #7859F0;
+    --brand-light: rgba(144,119,255,0.16);
+    --danger: #F17673;
+    --danger-dark: #E85552;
+    --warn: #F0B75C;
+    --success: #4FD79B;
+    --success-dark: #34C085;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  #app {
+    font-family: 'Inter', sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    min-height: 100vh;
+    padding: 22px 16px 60px;
+    position: relative;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+
+  .theme-toggle {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(255,255,255,0.18); border: none;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .envelope, .archive-card, .stat-card { animation: fadeSlideIn 0.35s ease both; }
+
+  .loading {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 60vh; gap: 14px; color: var(--ink-soft); font-family: 'Inter', sans-serif;
+  }
+  .stamp-spin { font-size: 36px; animation: spin 1.4s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  h1, .modal h3, .archive-head .am-name { font-family: 'Manrope', sans-serif; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(150deg, var(--brand) 0%, var(--brand-dark) 100%);
+    border-radius: 22px; padding: 22px 20px 20px; color: #fff; margin-bottom: 14px;
+    box-shadow: 0 10px 30px -12px rgba(108,74,230,0.55);
+  }
+  .hero-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .hero-month { font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.16); padding: 5px 11px; border-radius: 20px; text-transform: capitalize; }
+  .hero-label { font-size: 12px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .hero-amount { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 36px; line-height: 1.15; margin: 2px 0 14px; letter-spacing: -0.01em; }
+  .hero-amount span { font-size: 15px; font-weight: 600; opacity: 0.8; }
+  .hero-sub { display: flex; gap: 18px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.18); }
+  .hero-sub-item { flex: 1; }
+  .hero-sub-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.75; margin-bottom: 3px; }
+  .hero-sub-val { font-weight: 700; font-size: 15px; }
+  .hero-income-input {
+    font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 15px; color: #fff;
+    background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.4); padding: 1px 0; width: 100%;
+  }
+  .hero-income-input::placeholder { color: rgba(255,255,255,0.6); }
+  .hero-income-input:focus { outline: none; border-bottom-color: #fff; }
+
+  .status-banner { padding: 10px 14px; border-radius: 12px; font-size: 12px; text-align: center; font-weight: 600; margin-bottom: 14px; }
+  .status-banner.zero { background: rgba(51,196,129,0.14); color: var(--success-dark); }
+  .status-banner.over { background: rgba(232,82,79,0.14); color: var(--danger-dark); }
+  .status-banner.under { background: rgba(240,166,58,0.16); color: #9C6B15; }
+  #app[data-theme="dark"] .status-banner.under { color: var(--warn); }
+
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+  .stat-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 13px 8px; text-align: center; box-shadow: 0 1px 2px rgba(36,28,61,0.03); }
+  .stat-card .sc-num { font-family: 'Manrope', sans-serif; font-size: 19px; font-weight: 800; line-height: 1.1; }
+  .stat-card .sc-num.warn { color: var(--danger); }
+  .stat-card .sc-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin-top: 4px; line-height: 1.3; font-weight: 600; }
+
+  .pie-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(36,28,61,0.03); }
+  .pie-wrap { display: flex; align-items: center; gap: 18px; }
+  .pie {
+    width: 84px; height: 84px; border-radius: 50%; flex-shrink: 0;
+    position: relative;
+  }
+  .pie::after { content: ''; position: absolute; inset: 15px; background: var(--card); border-radius: 50%; }
+  .pie-legend { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+  .pie-legend .pl-row { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--ink-soft); }
+  .pie-legend .pl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .pie-legend .pl-row b { color: var(--ink); font-weight: 700; }
+  .pie-empty { font-size: 12px; color: var(--ink-soft); text-align: center; padding: 6px 0; }
+
+  .section-label {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.01em; color: var(--ink);
+    margin: 24px 0 10px; display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .envelopes { display: flex; flex-direction: column; gap: 10px; }
+
+  .envelope {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 14px 12px;
+    box-shadow: 0 1px 3px rgba(36,28,61,0.04);
+  }
+  .envelope-top { display: flex; align-items: center; gap: 12px; }
+  .envelope-icon {
+    width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .envelope-mid { flex: 1; min-width: 0; }
+  .envelope-name { font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 15px; }
+  .envelope-nums { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+  .envelope-nums b { color: var(--ink); font-weight: 700; }
+  .envelope-pct { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+
+  .bar-track { height: 6px; background: var(--brand-light); border-radius: 6px; margin: 11px 0 10px; overflow: hidden; }
+  #app[data-theme="dark"] .bar-track { background: rgba(255,255,255,0.08); }
+  .bar-fill { height: 100%; border-radius: 6px; transition: width 0.35s ease; }
+
+  .envelope-actions { display: flex; gap: 7px; margin-top: 2px; }
+
+  button { font-family: 'Inter', sans-serif; cursor: pointer; border: none; border-radius: 10px; }
+  .btn-mini { background: var(--bg); border: none; color: var(--ink-soft); font-size: 11px; font-weight: 600; padding: 6px 11px; }
+  #app[data-theme="dark"] .btn-mini { background: rgba(255,255,255,0.06); }
+  .btn-mini:hover { color: var(--brand); }
+  .btn-mini.spend { background: var(--brand-light); color: var(--brand-dark); }
+  .btn-mini.spend:hover { background: var(--brand); color: #fff; }
+
+  .btn-add-envelope {
+    width: 100%; background: transparent; border: 1.5px dashed var(--line); color: var(--ink-soft);
+    padding: 13px; font-size: 12px; font-weight: 600; border-radius: 16px;
+  }
+  .btn-add-envelope:hover { border-color: var(--brand); color: var(--brand); }
+
+  .ledger { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(36,28,61,0.03); }
+
+  .history { display: flex; flex-direction: column; gap: 0; }
+  .history-item { display: flex; justify-content: space-between; font-size: 12.5px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .history-item:last-child { border-bottom: none; }
+  .history-item .hi-left { color: var(--ink-soft); }
+  .history-item .hi-left b { color: var(--ink); font-weight: 700; }
+  .history-item .hi-amt { font-weight: 700; color: var(--danger); }
+  .history-item .hi-del { background: none; color: var(--ink-soft); font-size: 14px; margin-left: 10px; opacity: 0.5; }
+  .history-item .hi-del:hover { opacity: 1; color: var(--danger); }
+  .empty-hint { font-size: 12px; color: var(--ink-soft); text-align: center; padding: 14px 0; }
+
+  .archives { display: flex; flex-direction: column; gap: 8px; }
+  .archive-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .archive-head {
+    width: 100%; background: transparent; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; text-align: left;
+  }
+  .archive-head .am-name { font-weight: 700; font-size: 14px; text-transform: capitalize; }
+  .archive-head .am-meta { color: var(--ink-soft); font-size: 11px; margin-top: 2px; }
+  .archive-head .am-chevron { color: var(--ink-soft); font-size: 12px; transition: transform 0.2s ease; }
+  .archive-card.open .am-chevron { transform: rotate(180deg); }
+  .archive-body { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
+  .archive-card.open .archive-body { max-height: 900px; }
+  .archive-body-inner { padding: 0 16px 14px; border-top: 1px solid var(--line); }
+  .arch-env-row { display: flex; justify-content: space-between; font-size: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .arch-env-row:last-child { border-bottom: none; }
+  .arch-env-row .ae-name { color: var(--ink); }
+  .arch-env-row .ae-nums { color: var(--ink-soft); font-weight: 600; }
+  .arch-env-row .ae-nums.over { color: var(--danger); }
+
+  .stats-row-inline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+
+  .icon-picker { display: flex; flex-wrap: wrap; gap: 7px; }
+  .icon-opt { width: 38px; height: 38px; border-radius: 50%; border: 2px solid transparent; background: var(--bg); font-size: 17px; display: flex; align-items: center; justify-content: center; }
+  .icon-opt.selected { border-color: var(--brand); background: var(--brand-light); }
+
+  .backup-row { display: flex; gap: 8px; margin-top: 4px; }
+  .backup-row button { flex: 1; padding: 10px; font-size: 11.5px; }
+
+  .filter-input {
+    width: 100%; font-family: inherit; font-size: 13px; padding: 9px 12px; margin-bottom: 4px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink);
+  }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: rgba(23,17,42,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+  .modal { background: var(--card); border-radius: 20px; padding: 22px; width: 100%; max-width: 340px; box-shadow: 0 20px 50px rgba(23,17,42,0.35); }
+  .modal h3 { font-weight: 700; margin: 0 0 16px; font-size: 17px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); margin-bottom: 6px; font-weight: 600; }
+  .field input, .field select {
+    width: 100%; font-family: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid var(--line);
+    border-radius: 10px; background: var(--bg); color: var(--ink);
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--brand); }
+  .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .btn-primary, .btn-secondary { flex: 1; padding: 11px; font-size: 13px; font-weight: 700; border-radius: 12px; }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { background: var(--brand-dark); }
+  .btn-secondary { background: var(--bg); color: var(--ink-soft); }
+  .btn-secondary:hover { color: var(--ink); }
+
+  .footer-note { text-align: center; font-size: 11px; color: var(--ink-soft); margin-top: 30px; line-height: 1.6; }
+  .reset-link { color: var(--ink-soft); text-decoration: underline; background: none; font-size: 11px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stamp-spin { animation: none; }
+    .bar-fill, .archive-body { transition: none; }
+  }
+</style>
+
+<script>
+(function() {
+  const STORAGE_KEY = 'ci-budget-envelopes-v2';
+  const MOIS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const GROUPS = [
+    { id: 'fixe', label: 'Charges fixes', icon: '🏛️' },
+    { id: 'vie', label: 'Vie courante', icon: '🍽️' },
+    { id: 'libre', label: 'Budget libre', icon: '🎈' },
+    { id: 'epargne', label: 'Épargne', icon: '🐖' }
+  ];
+  const DEFAULT_ENVELOPES = [
+    { id: 'loyer', name: 'Loyer', allocated: 0, icon: '🏠', group: 'fixe' },
+    { id: 'factures', name: 'Factures', allocated: 0, icon: '💡', group: 'fixe' },
+    { id: 'nourriture', name: 'Nourriture', allocated: 0, icon: '🛒', group: 'vie' },
+    { id: 'transport', name: 'Transport', allocated: 0, icon: '🚕', group: 'vie' },
+    { id: 'famille', name: 'Famille / Aide', allocated: 0, icon: '❤️', group: 'vie' },
+    { id: 'loisirs', name: 'Loisirs', allocated: 0, icon: '🎉', group: 'libre' },
+    { id: 'imprevus', name: 'Imprévus', allocated: 0, icon: '⚠️', group: 'libre' },
+    { id: 'epargne', name: 'Épargne', allocated: 0, icon: '🐖', group: 'epargne' },
+  ];
+  const ICON_CHOICES = ['✉','🏠','🛒','🚕','💡','❤️','🎉','🐖','⚠️','📚','💊','🐾','🎁','👕','📱','⛽'];
+
+  let state = null;
+  let modal = null;
+  let openArchive = null;
+  let expenseFilter = '';
+  let selectedIcon = '✉';
+  let selectedGroup = 'vie';
+
+  function uid() { return Math.random().toString(36).slice(2, 9); }
+  function fmt(n) { return Math.round(n).toLocaleString('fr-FR').replace(/,/g, ' '); }
+  function monthKey(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+  function monthLabel(key) {
+    const [y,m] = key.split('-').map(Number);
+    return MOIS_FR[m-1] + ' ' + y;
+  }
+
+  function freshMonth(carryEnvelopes, carryIncome) {
+    return {
+      currentMonthKey: monthKey(new Date()),
+      income: carryIncome || 0,
+      envelopes: (carryEnvelopes || DEFAULT_ENVELOPES).map(e => ({ id: e.id, name: e.name, allocated: e.allocated, icon: e.icon || '✉', group: e.group || 'vie' })),
+      expenses: [],
+      history: {},
+      theme: 'light'
+    };
+  }
+
+  function archiveIfNewMonth() {
+    const nowKey = monthKey(new Date());
+    if (state.currentMonthKey === nowKey) return;
+    // snapshot the month that just ended
+    const snapEnvelopes = state.envelopes.map(e => ({
+      id: e.id, name: e.name, allocated: e.allocated, icon: e.icon || '✉', group: e.group || 'vie', spent: spentFor(e.id)
+    }));
+    state.history[state.currentMonthKey] = {
+      income: state.income,
+      envelopes: snapEnvelopes,
+      totalAllocated: snapEnvelopes.reduce((s,e) => s + e.allocated, 0),
+      totalSpent: snapEnvelopes.reduce((s,e) => s + e.spent, 0)
+    };
+    // start the new month: keep same envelope structure/budget & income as a template, clear spending
+    state.currentMonthKey = nowKey;
+    state.envelopes = state.envelopes.map(e => ({ id: e.id, name: e.name, allocated: e.allocated, icon: e.icon || '✉', group: e.group || 'vie' }));
+    state.expenses = [];
+  }
+
+  async function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        state = JSON.parse(raw);
+        if (!state.history) state.history = {};
+        if (!state.currentMonthKey) state.currentMonthKey = monthKey(new Date());
+        if (!state.theme) state.theme = 'light';
+        state.envelopes.forEach(e => { if (!e.icon) e.icon = '✉'; if (!e.group) e.group = 'vie'; });
+        archiveIfNewMonth();
+        saveState();
+      } else {
+        state = freshMonth();
+      }
+    } catch (e) {
+      state = freshMonth();
+    }
+    document.getElementById('loadingScreen').style.display = 'none';
+    render();
+  }
+
+  async function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch (e) { console.error('Erreur de sauvegarde', e); }
+  }
+
+  function spentFor(envId) {
+    return state.expenses.filter(x => x.envelopeId === envId).reduce((s, x) => s + x.amount, 0);
+  }
+  function totalAllocated() { return state.envelopes.reduce((s, e) => s + e.allocated, 0); }
+  const LIGHT_COLORS = { danger: '#E8524F', success: '#33C481', warn: '#F0A63A', brandLight: '#EDE7FE' };
+  const DARK_COLORS = { danger: '#F17673', success: '#4FD79B', warn: '#F0B75C', brandLight: 'rgba(144,119,255,0.16)' };
+  function palette() { return state.theme === 'dark' ? DARK_COLORS : LIGHT_COLORS; }
+  function sealColor(pct) {
+    const c = palette();
+    if (pct >= 1) return c.danger;
+    if (pct >= 0.85) return c.warn;
+    return c.success;
+  }
+  function daysLeftInMonth() {
+    const now = new Date();
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return last - now.getDate();
+  }
+  const AVATAR_COLORS = ['#6C4AE6', '#33C481', '#F0A63A', '#E8524F', '#3AA0E8', '#D24FA8', '#4FBF9E', '#B073F0'];
+  function avatarColor(index) { return AVATAR_COLORS[index % AVATAR_COLORS.length]; }
+  function buildPie(spent, allocRemaining, unallocated) {
+    const total = spent + allocRemaining + unallocated;
+    if (total <= 0) return { empty: true };
+    const c = palette();
+    const segs = [
+      { v: spent, color: c.danger },
+      { v: allocRemaining, color: c.success },
+      { v: unallocated, color: c.warn }
+    ];
+    let acc = 0;
+    const stops = [];
+    segs.forEach(s => {
+      if (s.v <= 0) return;
+      const start = (acc / total) * 100;
+      acc += s.v;
+      const end = (acc / total) * 100;
+      stops.push(`${s.color} ${start.toFixed(2)}% ${end.toFixed(2)}%`);
+    });
+    return { empty: false, gradient: stops.join(', ') };
+  }
+
+  function render() {
+    const app = document.getElementById('app');
+    app.setAttribute('data-theme', state.theme || 'light');
+    const allocated = totalAllocated();
+    const diff = state.income - allocated;
+
+    let bannerClass = 'zero', bannerText = '✓ Budget base zéro — chaque franc a une destination';
+    if (diff > 0) { bannerClass = 'under'; bannerText = `${fmt(diff)} FCFA non alloués — répartis-les dans une enveloppe`; }
+    if (diff < 0) { bannerClass = 'over'; bannerText = `Alloué dépasse le revenu de ${fmt(Math.abs(diff))} FCFA — ajuste tes enveloppes`; }
+
+    function envelopeCardHtml(env, idx) {
+      const spent = spentFor(env.id);
+      const remaining = env.allocated - spent;
+      const pct = env.allocated > 0 ? Math.min(spent / env.allocated, 1.3) : (spent > 0 ? 1.3 : 0);
+      const color = sealColor(pct);
+      const pctLabel = env.allocated > 0 ? Math.round((spent/env.allocated)*100) + '%' : '—';
+      const avColor = avatarColor(idx);
+      return `
+        <div class="envelope">
+          <div class="envelope-top">
+            <div class="envelope-icon" style="background:${avColor}22; color:${avColor}">${env.icon || '✉'}</div>
+            <div class="envelope-mid">
+              <div class="envelope-name">${escapeHtml(env.name)}</div>
+              <div class="envelope-nums">Alloué <b>${fmt(env.allocated)}</b> · Reste <b style="color:${remaining < 0 ? 'var(--danger)' : 'var(--ink)'}">${fmt(remaining)}</b> FCFA</div>
+            </div>
+            <div class="envelope-pct" style="color:${color}">${pctLabel}</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.min(pct,1)*100}%; background:${color}"></div></div>
+          <div class="envelope-actions">
+            <button class="btn-mini spend" onclick="BudgetApp.openExpense('${env.id}')">+ Dépense</button>
+            <button class="btn-mini" onclick="BudgetApp.openEditEnvelope('${env.id}')">Modifier</button>
+            <button class="btn-mini" onclick="BudgetApp.deleteEnvelope('${env.id}')">Suppr.</button>
+          </div>
+        </div>`;
+    }
+
+    let globalIdx = 0;
+    const groupsHtml = GROUPS.map(g => {
+      const envs = state.envelopes.filter(e => (e.group || 'vie') === g.id);
+      const groupAlloc = envs.reduce((s,e) => s + e.allocated, 0);
+      const groupSpent = envs.reduce((s,e) => s + spentFor(e.id), 0);
+      const cards = envs.map(e => envelopeCardHtml(e, globalIdx++)).join('');
+      return `
+        <div class="section-label">
+          <span>${g.icon} ${g.label}</span>
+          <span style="font-weight:600; color: var(--ink-soft); font-size:11px;">${fmt(groupSpent)} / ${fmt(groupAlloc)} FCFA</span>
+        </div>
+        <div class="envelopes">
+          ${cards || `<div class="empty-hint">Aucune enveloppe dans cette rubrique.</div>`}
+          <button class="btn-add-envelope" onclick="BudgetApp.openAddEnvelope('${g.id}')">+ Ajouter à ${g.label.toLowerCase()}</button>
+        </div>`;
+    }).join('');
+
+    const q = expenseFilter.trim().toLowerCase();
+    let visibleExpenses = [...state.expenses].sort((a,b) => b.ts - a.ts);
+    if (q) {
+      visibleExpenses = visibleExpenses.filter(x => {
+        const env = state.envelopes.find(e => e.id === x.envelopeId);
+        return (env && env.name.toLowerCase().includes(q)) || (x.note && x.note.toLowerCase().includes(q));
+      });
+    }
+    const recentExpenses = visibleExpenses.slice(0, 12);
+    const historyHtml = recentExpenses.length ? recentExpenses.map(x => {
+      const env = state.envelopes.find(e => e.id === x.envelopeId);
+      return `
+        <div class="history-item">
+          <div class="hi-left"><b>${env ? (env.icon + ' ') : ''}${escapeHtml(env ? env.name : '—')}</b> ${x.note ? '· ' + escapeHtml(x.note) : ''} <span style="opacity:0.6">· ${x.date}</span></div>
+          <div style="display:flex;align-items:center;">
+            <span class="hi-amt">-${fmt(x.amount)}</span>
+            <button class="hi-del" onclick="BudgetApp.deleteExpense('${x.id}')">✕</button>
+          </div>
+        </div>`;
+    }).join('') : `<div class="empty-hint">${q ? 'Aucune dépense ne correspond à ta recherche.' : "Aucune dépense enregistrée pour l'instant."}</div>`;
+
+    const archiveKeys = Object.keys(state.history).sort().reverse();
+    const archivesHtml = archiveKeys.length ? archiveKeys.map(key => {
+      const m = state.history[key];
+      const isOpen = openArchive === key;
+      const envRows = m.envelopes.map(e => {
+        const over = e.spent > e.allocated;
+        return `
+          <div class="arch-env-row">
+            <span class="ae-name">${escapeHtml(e.name)}</span>
+            <span class="ae-nums ${over ? 'over' : ''}">${fmt(e.spent)} / ${fmt(e.allocated)} FCFA</span>
+          </div>`;
+      }).join('');
+      return `
+        <div class="archive-card ${isOpen ? 'open' : ''}">
+          <button class="archive-head" onclick="BudgetApp.toggleArchive('${key}')">
+            <span>
+              <span class="am-name">${monthLabel(key)}</span>
+              <div class="am-meta">Revenu ${fmt(m.income)} · Dépensé ${fmt(m.totalSpent)} / ${fmt(m.totalAllocated)} FCFA</div>
+            </span>
+            <span class="am-chevron">▾</span>
+          </button>
+          <div class="archive-body"><div class="archive-body-inner">${envRows}</div></div>
+        </div>`;
+    }).join('') : `<div class="empty-hint">Les mois précédents apparaîtront ici, automatiquement, dès le mois prochain.</div>`;
+
+    const spentTotal = state.envelopes.reduce((s,e) => s + spentFor(e.id), 0);
+    const allocRemaining = Math.max(allocated - spentTotal, 0);
+    const unallocated = Math.max(state.income - allocated, 0);
+    const overCount = state.envelopes.filter(e => spentFor(e.id) > e.allocated && e.allocated > 0).length;
+    const daysLeft = daysLeftInMonth();
+    const resteAVivre = state.income - spentTotal;
+    const pie = buildPie(spentTotal, allocRemaining, unallocated);
+
+    app.innerHTML = `
+      <div class="wrap">
+        <div class="hero">
+          <div class="hero-top">
+            <span class="hero-month">${monthLabel(state.currentMonthKey)}</span>
+            <button class="theme-toggle" onclick="BudgetApp.toggleTheme()" aria-label="Changer de thème">${state.theme === 'dark' ? '☀️' : '🌙'}</button>
+          </div>
+          <div class="hero-label">Reste à vivre</div>
+          <div class="hero-amount">${fmt(resteAVivre)} <span>FCFA</span></div>
+          <div class="hero-sub">
+            <div class="hero-sub-item">
+              <div class="hero-sub-label">Revenu du mois</div>
+              <input class="hero-income-input" id="incomeInput" type="number" inputmode="numeric" value="${state.income || ''}" placeholder="0" />
+            </div>
+            <div class="hero-sub-item">
+              <div class="hero-sub-label">Dépensé</div>
+              <div class="hero-sub-val">${fmt(spentTotal)} FCFA</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-banner ${bannerClass}">${bannerText}</div>
+
+        <div class="stats-row">
+          <div class="stat-card"><div class="sc-num">${daysLeft}</div><div class="sc-label">Jours restants</div></div>
+          <div class="stat-card"><div class="sc-num">${fmt(allocated)}</div><div class="sc-label">Total alloué</div></div>
+          <div class="stat-card"><div class="sc-num ${overCount > 0 ? 'warn' : ''}">${overCount}</div><div class="sc-label">Enveloppe${overCount>1?'s':''} dépassée${overCount>1?'s':''}</div></div>
+        </div>
+
+        <div class="pie-card">
+          ${pie.empty ? `<div class="pie-empty">Ajoute ton revenu pour voir la répartition.</div>` : `
+          <div class="pie-wrap">
+            <div class="pie" style="background: conic-gradient(${pie.gradient})"></div>
+            <div class="pie-legend">
+              <div class="pl-row"><span class="pl-dot" style="background:${palette().danger}"></span>Dépensé <b>${fmt(spentTotal)}</b></div>
+              <div class="pl-row"><span class="pl-dot" style="background:${palette().success}"></span>Alloué restant <b>${fmt(allocRemaining)}</b></div>
+              <div class="pl-row"><span class="pl-dot" style="background:${palette().warn}"></span>Non alloué <b>${fmt(unallocated)}</b></div>
+            </div>
+          </div>`}
+        </div>
+
+        ${groupsHtml}
+
+        <div class="section-label"><span>Journal des dépenses</span></div>
+        <div class="ledger">
+          ${state.expenses.length > 3 ? `<input class="filter-input" id="expenseFilterInput" placeholder="Rechercher une dépense ou une enveloppe…" value="${escapeHtml(expenseFilter)}" />` : ''}
+          <div class="history">${historyHtml}</div>
+        </div>
+
+        <div class="section-label"><span>Archives · mois précédents</span></div>
+        <div class="archives">${archivesHtml}</div>
+
+        <div class="section-label"><span>Sauvegarde</span></div>
+        <div class="ledger">
+          <div style="font-size:12px; color: var(--ink-soft);">Exporte régulièrement une copie de secours de tes données, à garder dans tes Fichiers.</div>
+          <div class="backup-row">
+            <button class="btn-mini" onclick="BudgetApp.exportData()">⬇ Exporter</button>
+            <button class="btn-mini" onclick="document.getElementById('importFile').click()">⬆ Importer</button>
+          </div>
+          <input type="file" id="importFile" accept="application/json" style="display:none" onchange="BudgetApp.importData(event)" />
+        </div>
+
+        <div class="footer-note">
+          Tes données restent sur cet appareil (ce navigateur). Un nouveau mois démarre automatiquement le 1er,<br/>
+          en reprenant tes enveloppes et ton revenu comme modèle — l'ancien mois est archivé ci-dessus.<br/>
+          <button class="reset-link" onclick="BudgetApp.resetAll()">Réinitialiser toutes les données</button>
+        </div>
+      </div>
+      ${modalHtml()}
+    `;
+
+    document.getElementById('incomeInput').addEventListener('change', (e) => {
+      state.income = parseFloat(e.target.value) || 0;
+      saveState();
+      render();
+    });
+    const filterEl = document.getElementById('expenseFilterInput');
+    if (filterEl) {
+      filterEl.addEventListener('input', (e) => {
+        expenseFilter = e.target.value;
+        render();
+        const el = document.getElementById('expenseFilterInput');
+        if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
+      });
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function modalHtml() {
+    if (!modal) return '';
+    if (modal.type === 'expense') {
+      const env = state.envelopes.find(e => e.id === modal.envelopeId);
+      return `
+        <div class="overlay" onclick="if(event.target===this) BudgetApp.closeModal()">
+          <div class="modal">
+            <h3>Dépense · ${escapeHtml(env.name)}</h3>
+            <div class="field"><label>Montant (FCFA)</label><input id="mAmount" type="number" inputmode="numeric" autofocus /></div>
+            <div class="field"><label>Note (optionnel)</label><input id="mNote" type="text" placeholder="ex: taxi, marché..." /></div>
+            <div class="modal-actions">
+              <button class="btn-secondary" onclick="BudgetApp.closeModal()">Annuler</button>
+              <button class="btn-primary" onclick="BudgetApp.saveExpense()">Enregistrer</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    if (modal.type === 'addEnvelope' || modal.type === 'editEnvelope') {
+      const env = modal.type === 'editEnvelope' ? state.envelopes.find(e => e.id === modal.envelopeId) : null;
+      const iconsHtml = ICON_CHOICES.map(ic => `<button type="button" class="icon-opt ${ic === selectedIcon ? 'selected' : ''}" onclick="BudgetApp.pickIcon('${ic}')">${ic}</button>`).join('');
+      const groupOptsHtml = GROUPS.map(g => `<option value="${g.id}" ${g.id === selectedGroup ? 'selected' : ''}>${g.icon} ${g.label}</option>`).join('');
+      return `
+        <div class="overlay" onclick="if(event.target===this) BudgetApp.closeModal()">
+          <div class="modal">
+            <h3>${env ? 'Modifier' : 'Nouvelle'} enveloppe</h3>
+            <div class="field"><label>Icône</label><div class="icon-picker">${iconsHtml}</div></div>
+            <div class="field"><label>Nom</label><input id="mName" type="text" value="${env ? escapeHtml(env.name) : ''}" autofocus /></div>
+            <div class="field"><label>Rubrique</label><select id="mGroup" onchange="BudgetApp.pickGroup(this.value)">${groupOptsHtml}</select></div>
+            <div class="field"><label>Montant alloué (FCFA)</label><input id="mAlloc" type="number" inputmode="numeric" value="${env ? env.allocated : ''}" /></div>
+            <div class="modal-actions">
+              <button class="btn-secondary" onclick="BudgetApp.closeModal()">Annuler</button>
+              <button class="btn-primary" onclick="BudgetApp.saveEnvelope()">Enregistrer</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    return '';
+  }
+
+  window.BudgetApp = {
+    openExpense(envelopeId) { modal = { type: 'expense', envelopeId }; render(); },
+    openAddEnvelope(groupId) { selectedIcon = '✉'; selectedGroup = groupId || 'vie'; modal = { type: 'addEnvelope' }; render(); },
+    openEditEnvelope(envelopeId) {
+      const env = state.envelopes.find(e => e.id === envelopeId);
+      selectedIcon = (env && env.icon) || '✉';
+      selectedGroup = (env && env.group) || 'vie';
+      modal = { type: 'editEnvelope', envelopeId };
+      render();
+    },
+    pickIcon(ic) { selectedIcon = ic; render(); },
+    pickGroup(g) { selectedGroup = g; },
+    closeModal() { modal = null; render(); },
+    toggleArchive(key) { openArchive = openArchive === key ? null : key; render(); },
+    toggleTheme() { state.theme = state.theme === 'dark' ? 'light' : 'dark'; saveState(); render(); },
+
+    saveExpense() {
+      const amount = parseFloat(document.getElementById('mAmount').value) || 0;
+      const note = document.getElementById('mNote').value.trim();
+      if (amount <= 0) return;
+      state.expenses.push({
+        id: uid(), envelopeId: modal.envelopeId, amount, note,
+        date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
+        ts: Date.now()
+      });
+      modal = null;
+      saveState();
+      render();
+    },
+
+    saveEnvelope() {
+      const name = document.getElementById('mName').value.trim();
+      const allocated = parseFloat(document.getElementById('mAlloc').value) || 0;
+      const groupEl = document.getElementById('mGroup');
+      const group = groupEl ? groupEl.value : selectedGroup;
+      if (!name) return;
+      if (modal.type === 'editEnvelope') {
+        const env = state.envelopes.find(e => e.id === modal.envelopeId);
+        env.name = name;
+        env.allocated = allocated;
+        env.icon = selectedIcon;
+        env.group = group;
+      } else {
+        state.envelopes.push({ id: uid(), name, allocated, icon: selectedIcon, group });
+      }
+      modal = null;
+      saveState();
+      render();
+    },
+
+    deleteEnvelope(envelopeId) {
+      state.envelopes = state.envelopes.filter(e => e.id !== envelopeId);
+      state.expenses = state.expenses.filter(x => x.envelopeId !== envelopeId);
+      saveState();
+      render();
+    },
+
+    deleteExpense(expenseId) {
+      state.expenses = state.expenses.filter(x => x.id !== expenseId);
+      saveState();
+      render();
+    },
+
+    resetAll() {
+      if (!confirm('Réinitialiser tout le budget, y compris les archives ? Cette action est irréversible.')) return;
+      state = freshMonth();
+      openArchive = null;
+      saveState();
+      render();
+    },
+
+    exportData() {
+      try {
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `budget-sauvegarde-${state.currentMonthKey}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      } catch (e) {
+        console.error('Erreur export', e);
+        alert("L'export a échoué.");
+      }
+    },
+
+    importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result);
+          if (!parsed.envelopes || !Array.isArray(parsed.envelopes)) throw new Error('format invalide');
+          if (!confirm('Remplacer toutes tes données actuelles par celles de ce fichier de sauvegarde ?')) return;
+          state = parsed;
+          if (!state.history) state.history = {};
+          if (!state.theme) state.theme = 'light';
+          state.envelopes.forEach(e => { if (!e.icon) e.icon = '✉'; if (!e.group) e.group = 'vie'; });
+          archiveIfNewMonth();
+          saveState();
+          render();
+        } catch (e) {
+          alert("Ce fichier ne semble pas être une sauvegarde valide.");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+  };
+
+  loadState();
+})();
+</script>
+</body>
+</html>
