@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enveloppes — Budget base zéro</title>
+</head>
+<body>
+<div id="app">
+  <div class="loading" id="loadingScreen">
+    <div class="stamp-spin">✉</div>
+    <p>Ouverture du courrier…</p>
+  </div>
+</div>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --kraft: #e9ddc4;
+    --kraft-dark: #cbb98f;
+    --paper: #f8f3e6;
+    --ink: #2b2216;
+    --ink-soft: #6b5f4c;
+    --seal: #a8382c;
+    --seal-dark: #7e2a21;
+    --stamp-gold: #b9862e;
+    --postal-green: #3d6b5c;
+    --postal-green-dark: #294c41;
+    --line: rgba(43,34,22,0.15);
+  }
+
+  #app[data-theme="dark"] {
+    --kraft: #221b13;
+    --kraft-dark: #3a2f22;
+    --paper: #2c2318;
+    --ink: #ecdfc6;
+    --ink-soft: #a8967a;
+    --seal: #d97757;
+    --seal-dark: #b9573c;
+    --stamp-gold: #d4a24e;
+    --postal-green: #5b9c86;
+    --postal-green-dark: #4a8471;
+    --line: rgba(236,223,198,0.14);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  #app {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--ink);
+    background: var(--kraft);
+    background-image:
+      radial-gradient(circle at 10% 20%, rgba(255,255,255,0.25) 0, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(0,0,0,0.05) 0, transparent 50%);
+    min-height: 100vh;
+    padding: 28px 18px 60px;
+    position: relative;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  #app[data-theme="dark"] {
+    background-image:
+      radial-gradient(circle at 10% 20%, rgba(255,255,255,0.04) 0, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(0,0,0,0.2) 0, transparent 50%);
+  }
+
+  .theme-toggle {
+    position: absolute; top: 28px; right: 18px;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--paper); border: 1px solid var(--kraft-dark);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+    z-index: 2;
+  }
+
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .envelope, .archive-card, .stat-card { animation: fadeSlideIn 0.35s ease both; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+  .stat-card { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 12px 10px; text-align: center; }
+  .stat-card .sc-num { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 700; line-height: 1.1; }
+  .stat-card .sc-num.warn { color: var(--seal); }
+  .stat-card .sc-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); margin-top: 4px; line-height: 1.3; }
+
+  .donut-wrap { display: flex; align-items: center; gap: 18px; padding: 6px 0 4px; }
+  .donut-legend { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .donut-legend .dl-row { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--ink-soft); }
+  .donut-legend .dl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .donut-legend .dl-row b { color: var(--ink); font-weight: 600; }
+  .donut-empty { font-size: 12px; color: var(--ink-soft); text-align: center; padding: 10px 0; }
+
+  .icon-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+  .icon-opt { width: 36px; height: 36px; border-radius: 4px; border: 1px solid var(--kraft-dark); background: #fff; font-size: 17px; display: flex; align-items: center; justify-content: center; }
+  .icon-opt.selected { border-color: var(--seal); background: rgba(168,56,44,0.1); }
+
+  .backup-row { display: flex; gap: 8px; margin-top: 12px; }
+  .backup-row button { flex: 1; padding: 9px; font-size: 11px; }
+
+  .filter-input {
+    width: 100%; font-family: inherit; font-size: 13px; padding: 8px 10px; margin-bottom: 10px;
+    border: 1px solid var(--kraft-dark); border-radius: 3px; background: #fff; color: var(--ink);
+  }
+  #app[data-theme="dark"] .filter-input, #app[data-theme="dark"] .field input, #app[data-theme="dark"] .field select { background: #1f1810; color: var(--ink); }
+  #app[data-theme="dark"] .icon-opt { background: #1f1810; }
+
+  .loading {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 60vh; gap: 14px; color: var(--ink-soft);
+  }
+  .stamp-spin { font-size: 40px; animation: spin 1.4s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  .masthead { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  h1 {
+    font-family: 'Fraunces', serif; font-weight: 700; font-size: 28px;
+    letter-spacing: -0.01em; margin: 0 0 2px;
+  }
+  .subtitle {
+    font-size: 12px; color: var(--ink-soft); letter-spacing: 0.06em; text-transform: uppercase;
+    margin: 0 0 22px; display: flex; align-items: center; gap: 8px;
+  }
+  .subtitle::before, .subtitle::after { content: ''; height: 1px; flex: 1; background: var(--line); }
+
+  /* Postmark showing current month, like a cancellation stamp */
+  .postmark {
+    flex-shrink: 0;
+    width: 64px; height: 64px;
+    border: 2px solid var(--ink-soft);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+    transform: rotate(-8deg);
+    opacity: 0.75;
+    position: relative;
+  }
+  .postmark::before, .postmark::after {
+    content: ''; position: absolute; left: -14px; right: -14px; height: 1px; background: var(--ink-soft); opacity: 0.6;
+  }
+  .postmark::before { top: 14px; }
+  .postmark::after { bottom: 14px; }
+  .postmark span {
+    font-size: 9px; line-height: 1.25; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft);
+  }
+  .postmark b { display: block; font-size: 11px; color: var(--ink); }
+
+  .ledger {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 4px;
+    padding: 18px 20px; margin-bottom: 20px; box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+  }
+
+  .ledger-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; font-size: 14px; }
+  .ledger-row + .ledger-row { border-top: 1px dashed var(--line); }
+  .ledger-row .label { color: var(--ink-soft); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .ledger-row .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ledger-row .value.income-input {
+    font-family: inherit; font-weight: 600; text-align: right; border: none; background: transparent;
+    border-bottom: 1px solid var(--line); width: 130px; padding: 2px 0; color: var(--ink);
+  }
+  .ledger-row .value.income-input:focus { outline: none; border-bottom-color: var(--seal); }
+
+  .status-banner { margin-top: 10px; padding: 8px 12px; border-radius: 3px; font-size: 12px; text-align: center; letter-spacing: 0.02em; }
+  .status-banner.zero { background: rgba(61,107,92,0.12); color: var(--postal-green-dark); }
+  .status-banner.over { background: rgba(168,56,44,0.12); color: var(--seal-dark); }
+  .status-banner.under { background: rgba(185,134,46,0.12); color: var(--stamp-gold); }
+
+  .section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-soft);
+    margin: 26px 0 12px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .section-label .link-btn {
+    background: none; color: var(--seal); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    text-decoration: underline; padding: 0;
+  }
+
+  .envelopes { display: flex; flex-direction: column; gap: 14px; }
+
+  .envelope { position: relative; background: var(--paper); border: 1px solid var(--kraft-dark); border-radius: 3px; padding: 16px 16px 14px; overflow: hidden; }
+  .envelope::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 42px;
+    background: linear-gradient(135deg, transparent 49.5%, var(--kraft-dark) 50%, var(--kraft-dark) 50.5%, transparent 51%),
+                linear-gradient(45deg, transparent 49.5%, var(--kraft-dark) 50%, var(--kraft-dark) 50.5%, transparent 51%);
+    background-size: 50% 100%, 50% 100%; background-position: left top, right top; background-repeat: no-repeat;
+    opacity: 0.5; pointer-events: none;
+  }
+
+  .envelope-top { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1; }
+  .envelope-name { font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px; }
+  .envelope-nums { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .envelope-nums b { color: var(--ink); font-weight: 600; }
+
+  .seal {
+    width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: #fff; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.4);
+  }
+
+  .bar-track { height: 7px; background: rgba(43,34,22,0.08); border-radius: 4px; margin: 12px 0 10px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.35s ease; }
+
+  .envelope-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+  button { font-family: 'IBM Plex Mono', monospace; cursor: pointer; border: none; border-radius: 3px; }
+  .btn-mini { background: transparent; border: 1px solid var(--kraft-dark); color: var(--ink-soft); font-size: 11px; padding: 5px 10px; }
+  .btn-mini:hover { border-color: var(--seal); color: var(--seal); }
+  .btn-mini.spend { border-color: var(--postal-green); color: var(--postal-green-dark); }
+  .btn-mini.spend:hover { background: var(--postal-green); color: #fff; }
+
+  .btn-add-envelope {
+    width: 100%; background: transparent; border: 1.5px dashed var(--kraft-dark); color: var(--ink-soft);
+    padding: 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .btn-add-envelope:hover { border-color: var(--seal); color: var(--seal); }
+
+  .history { display: flex; flex-direction: column; gap: 0; }
+  .history-item { display: flex; justify-content: space-between; font-size: 12px; padding: 9px 0; border-bottom: 1px dashed var(--line); }
+  .history-item .hi-left { color: var(--ink-soft); }
+  .history-item .hi-left b { color: var(--ink); font-weight: 600; }
+  .history-item .hi-amt { font-weight: 600; }
+  .history-item .hi-del { background: none; color: var(--ink-soft); font-size: 14px; margin-left: 10px; opacity: 0.5; }
+  .history-item .hi-del:hover { opacity: 1; color: var(--seal); }
+  .empty-hint { font-size: 12px; color: var(--ink-soft); text-align: center; padding: 14px 0; }
+
+  /* Archives: stacked past months, each an old letter you can unfold */
+  .archives { display: flex; flex-direction: column; gap: 10px; }
+  .archive-card { background: var(--paper); border: 1px solid var(--kraft-dark); border-radius: 3px; overflow: hidden; }
+  .archive-head {
+    width: 100%; background: transparent; padding: 13px 16px; display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; text-align: left;
+  }
+  .archive-head .am-name { font-family: 'Fraunces', serif; font-weight: 600; font-size: 15px; text-transform: capitalize; }
+  .archive-head .am-meta { color: var(--ink-soft); font-size: 11px; margin-top: 2px; }
+  .archive-head .am-chevron { color: var(--ink-soft); font-size: 12px; transition: transform 0.2s ease; }
+  .archive-card.open .am-chevron { transform: rotate(180deg); }
+  .archive-body { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
+  .archive-card.open .archive-body { max-height: 900px; }
+  .archive-body-inner { padding: 0 16px 16px; border-top: 1px dashed var(--line); }
+  .arch-env-row { display: flex; justify-content: space-between; font-size: 12px; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+  .arch-env-row .ae-name { color: var(--ink); }
+  .arch-env-row .ae-nums { color: var(--ink-soft); }
+  .arch-env-row .ae-nums.over { color: var(--seal); }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: rgba(43,34,22,0.45); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+  .modal { background: var(--paper); border-radius: 5px; padding: 22px; width: 100%; max-width: 340px; box-shadow: 0 12px 40px rgba(0,0,0,0.25); }
+  .modal h3 { font-family: 'Fraunces', serif; margin: 0 0 16px; font-size: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); margin-bottom: 5px; }
+  .field input, .field select {
+    width: 100%; font-family: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--kraft-dark);
+    border-radius: 3px; background: #fff; color: var(--ink);
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--seal); }
+  .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .btn-primary, .btn-secondary { flex: 1; padding: 10px; font-size: 13px; font-weight: 600; }
+  .btn-primary { background: var(--seal); color: #fff; }
+  .btn-primary:hover { background: var(--seal-dark); }
+  .btn-secondary { background: transparent; border: 1px solid var(--kraft-dark); color: var(--ink-soft); }
+  .btn-secondary:hover { border-color: var(--ink-soft); }
+
+  .footer-note { text-align: center; font-size: 11px; color: var(--ink-soft); margin-top: 30px; line-height: 1.6; }
+  .reset-link { color: var(--ink-soft); text-decoration: underline; background: none; font-size: 11px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stamp-spin { animation: none; }
+    .bar-fill, .archive-body { transition: none; }
+  }
+</style>
+
+<script>
+(function() {
+  const STORAGE_KEY = 'ci-budget-envelopes-v2';
+  const MOIS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const DEFAULT_ENVELOPES = [
+    { id: 'loyer', name: 'Loyer', allocated: 0, icon: '🏠' },
+    { id: 'nourriture', name: 'Nourriture', allocated: 0, icon: '🛒' },
+    { id: 'transport', name: 'Transport', allocated: 0, icon: '🚕' },
+    { id: 'factures', name: 'Factures', allocated: 0, icon: '💡' },
+    { id: 'famille', name: 'Famille / Aide', allocated: 0, icon: '❤️' },
+    { id: 'loisirs', name: 'Loisirs', allocated: 0, icon: '🎉' },
+    { id: 'epargne', name: 'Épargne', allocated: 0, icon: '🐖' },
+    { id: 'imprevus', name: 'Imprévus', allocated: 0, icon: '⚠️' },
+  ];
+  const ICON_CHOICES = ['✉','🏠','🛒','🚕','💡','❤️','🎉','🐖','⚠️','📚','💊','🐾','🎁','👕','📱','⛽'];
+
+  let state = null;
+  let modal = null;
+  let openArchive = null;
+  let expenseFilter = '';
+  let selectedIcon = '✉';
+
+  function uid() { return Math.random().toString(36).slice(2, 9); }
+  function fmt(n) { return Math.round(n).toLocaleString('fr-FR').replace(/,/g, ' '); }
+  function monthKey(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+  function monthLabel(key) {
+    const [y,m] = key.split('-').map(Number);
+    return MOIS_FR[m-1] + ' ' + y;
+  }
+
+  function freshMonth(carryEnvelopes, carryIncome) {
+    return {
+      currentMonthKey: monthKey(new Date()),
+      income: carryIncome || 0,
+      envelopes: (carryEnvelopes || DEFAULT_ENVELOPES).map(e => ({ id: e.id, name: e.name, allocated: e.allocated, icon: e.icon || '✉' })),
+      expenses: [],
+      history: {},
+      theme: 'light'
+    };
+  }
+
+  function archiveIfNewMonth() {
+    const nowKey = monthKey(new Date());
+    if (state.currentMonthKey === nowKey) return;
+    // snapshot the month that just ended
+    const snapEnvelopes = state.envelopes.map(e => ({
+      id: e.id, name: e.name, allocated: e.allocated, icon: e.icon || '✉', spent: spentFor(e.id)
+    }));
+    state.history[state.currentMonthKey] = {
+      income: state.income,
+      envelopes: snapEnvelopes,
+      totalAllocated: snapEnvelopes.reduce((s,e) => s + e.allocated, 0),
+      totalSpent: snapEnvelopes.reduce((s,e) => s + e.spent, 0)
+    };
+    // start the new month: keep same envelope structure/budget & income as a template, clear spending
+    state.currentMonthKey = nowKey;
+    state.envelopes = state.envelopes.map(e => ({ id: e.id, name: e.name, allocated: e.allocated, icon: e.icon || '✉' }));
+    state.expenses = [];
+  }
+
+  async function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        state = JSON.parse(raw);
+        if (!state.history) state.history = {};
+        if (!state.currentMonthKey) state.currentMonthKey = monthKey(new Date());
+        if (!state.theme) state.theme = 'light';
+        state.envelopes.forEach(e => { if (!e.icon) e.icon = '✉'; });
+        archiveIfNewMonth();
+        saveState();
+      } else {
+        state = freshMonth();
+      }
+    } catch (e) {
+      state = freshMonth();
+    }
+    document.getElementById('loadingScreen').style.display = 'none';
+    render();
+  }
+
+  async function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch (e) { console.error('Erreur de sauvegarde', e); }
+  }
+
+  function spentFor(envId) {
+    return state.expenses.filter(x => x.envelopeId === envId).reduce((s, x) => s + x.amount, 0);
+  }
+  function totalAllocated() { return state.envelopes.reduce((s, e) => s + e.allocated, 0); }
+  function sealColor(pct) {
+    if (pct >= 1) return 'var(--seal)';
+    if (pct >= 0.85) return 'var(--stamp-gold)';
+    return 'var(--postal-green)';
+  }
+  function daysLeftInMonth() {
+    const now = new Date();
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return last - now.getDate();
+  }
+  function donutSVG(spent, allocRemaining, unallocated) {
+    const total = spent + allocRemaining + unallocated;
+    if (total <= 0) return '<div class="donut-empty">Ajoute ton revenu pour voir la répartition.</div>';
+    const r = 42, c = 2 * Math.PI * r;
+    const segs = [
+      { v: spent, color: 'var(--seal)' },
+      { v: allocRemaining, color: 'var(--postal-green)' },
+      { v: unallocated, color: 'var(--stamp-gold)' }
+    ];
+    let offset = 0;
+    const arcs = segs.filter(s => s.v > 0).map(s => {
+      const frac = s.v / total;
+      const len = frac * c;
+      const dash = `${len} ${c - len}`;
+      const el = `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${s.color}" stroke-width="12" stroke-dasharray="${dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 50 50)" />`;
+      offset += len;
+      return el;
+    }).join('');
+    return `
+      <svg width="100" height="100" viewBox="0 0 100 100">${arcs}</svg>`;
+  }
+
+  function render() {
+    const app = document.getElementById('app');
+    app.setAttribute('data-theme', state.theme || 'light');
+    const allocated = totalAllocated();
+    const diff = state.income - allocated;
+
+    let bannerClass = 'zero', bannerText = '✓ Budget base zéro — chaque franc a une destination';
+    if (diff > 0) { bannerClass = 'under'; bannerText = `${fmt(diff)} FCFA non alloués — répartis-les dans une enveloppe`; }
+    if (diff < 0) { bannerClass = 'over'; bannerText = `Alloué dépasse le revenu de ${fmt(Math.abs(diff))} FCFA — ajuste tes enveloppes`; }
+
+    const envelopesHtml = state.envelopes.map(env => {
+      const spent = spentFor(env.id);
+      const remaining = env.allocated - spent;
+      const pct = env.allocated > 0 ? Math.min(spent / env.allocated, 1.3) : (spent > 0 ? 1.3 : 0);
+      const color = sealColor(pct);
+      const pctLabel = env.allocated > 0 ? Math.round((spent/env.allocated)*100) + '%' : '—';
+      return `
+        <div class="envelope">
+          <div class="envelope-top">
+            <div>
+              <div class="envelope-name">${env.icon || '✉'} ${escapeHtml(env.name)}</div>
+              <div class="envelope-nums">Alloué <b>${fmt(env.allocated)}</b> · Reste <b style="color:${remaining < 0 ? 'var(--seal)' : 'var(--ink)'}">${fmt(remaining)}</b> FCFA</div>
+            </div>
+            <div class="seal" style="background:${color}">${pctLabel}</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.min(pct,1)*100}%; background:${color}"></div></div>
+          <div class="envelope-actions">
+            <button class="btn-mini spend" onclick="BudgetApp.openExpense('${env.id}')">+ Dépense</button>
+            <button class="btn-mini" onclick="BudgetApp.openEditEnvelope('${env.id}')">Modifier</button>
+            <button class="btn-mini" onclick="BudgetApp.deleteEnvelope('${env.id}')">Suppr.</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    const q = expenseFilter.trim().toLowerCase();
+    let visibleExpenses = [...state.expenses].sort((a,b) => b.ts - a.ts);
+    if (q) {
+      visibleExpenses = visibleExpenses.filter(x => {
+        const env = state.envelopes.find(e => e.id === x.envelopeId);
+        return (env && env.name.toLowerCase().includes(q)) || (x.note && x.note.toLowerCase().includes(q));
+      });
+    }
+    const recentExpenses = visibleExpenses.slice(0, 12);
+    const historyHtml = recentExpenses.length ? recentExpenses.map(x => {
+      const env = state.envelopes.find(e => e.id === x.envelopeId);
+      return `
+        <div class="history-item">
+          <div class="hi-left"><b>${env ? (env.icon + ' ') : ''}${escapeHtml(env ? env.name : '—')}</b> ${x.note ? '· ' + escapeHtml(x.note) : ''} <span style="opacity:0.6">· ${x.date}</span></div>
+          <div style="display:flex;align-items:center;">
+            <span class="hi-amt">-${fmt(x.amount)}</span>
+            <button class="hi-del" onclick="BudgetApp.deleteExpense('${x.id}')">✕</button>
+          </div>
+        </div>`;
+    }).join('') : `<div class="empty-hint">${q ? 'Aucune dépense ne correspond à ta recherche.' : "Aucune dépense enregistrée pour l'instant."}</div>`;
+
+    const archiveKeys = Object.keys(state.history).sort().reverse();
+    const archivesHtml = archiveKeys.length ? archiveKeys.map(key => {
+      const m = state.history[key];
+      const isOpen = openArchive === key;
+      const envRows = m.envelopes.map(e => {
+        const over = e.spent > e.allocated;
+        return `
+          <div class="arch-env-row">
+            <span class="ae-name">${escapeHtml(e.name)}</span>
+            <span class="ae-nums ${over ? 'over' : ''}">${fmt(e.spent)} / ${fmt(e.allocated)} FCFA</span>
+          </div>`;
+      }).join('');
+      return `
+        <div class="archive-card ${isOpen ? 'open' : ''}">
+          <button class="archive-head" onclick="BudgetApp.toggleArchive('${key}')">
+            <span>
+              <span class="am-name">${monthLabel(key)}</span>
+              <div class="am-meta">Revenu ${fmt(m.income)} · Dépensé ${fmt(m.totalSpent)} / ${fmt(m.totalAllocated)} FCFA</div>
+            </span>
+            <span class="am-chevron">▾</span>
+          </button>
+          <div class="archive-body"><div class="archive-body-inner">${envRows}</div></div>
+        </div>`;
+    }).join('') : `<div class="empty-hint">Les mois précédents apparaîtront ici, automatiquement, dès le mois prochain.</div>`;
+
+    const spentTotal = state.envelopes.reduce((s,e) => s + spentFor(e.id), 0);
+    const allocRemaining = Math.max(allocated - spentTotal, 0);
+    const unallocated = Math.max(state.income - allocated, 0);
+    const overCount = state.envelopes.filter(e => spentFor(e.id) > e.allocated && e.allocated > 0).length;
+    const daysLeft = daysLeftInMonth();
+
+    app.innerHTML = `
+      <button class="theme-toggle" onclick="BudgetApp.toggleTheme()" aria-label="Changer de thème">${state.theme === 'dark' ? '☀️' : '🌙'}</button>
+      <div class="wrap">
+        <div class="masthead">
+          <div>
+            <h1>Enveloppes ✉</h1>
+          </div>
+          <div class="postmark"><span><b>${monthLabel(state.currentMonthKey)}</b>Suivi en cours</span></div>
+        </div>
+        <p class="subtitle">Budget base zéro</p>
+
+        <div class="stats-row">
+          <div class="stat-card"><div class="sc-num">${daysLeft}</div><div class="sc-label">Jours restants</div></div>
+          <div class="stat-card"><div class="sc-num">${fmt(spentTotal)}</div><div class="sc-label">Dépensé (FCFA)</div></div>
+          <div class="stat-card"><div class="sc-num ${overCount > 0 ? 'warn' : ''}">${overCount}</div><div class="sc-label">Enveloppe${overCount>1?'s':''} dépassée${overCount>1?'s':''}</div></div>
+        </div>
+
+        <div class="ledger">
+          <div class="ledger-row">
+            <span class="label">Revenu du mois</span>
+            <input class="value income-input" id="incomeInput" type="number" inputmode="numeric" value="${state.income || ''}" placeholder="0" />
+          </div>
+          <div class="ledger-row">
+            <span class="label">Total alloué</span>
+            <span class="value">${fmt(allocated)} FCFA</span>
+          </div>
+          <div class="status-banner ${bannerClass}">${bannerText}</div>
+          ${state.income > 0 ? `
+          <div class="donut-wrap">
+            ${donutSVG(spentTotal, allocRemaining, unallocated)}
+            <div class="donut-legend">
+              <div class="dl-row"><span class="dl-dot" style="background:var(--seal)"></span>Dépensé <b>${fmt(spentTotal)}</b></div>
+              <div class="dl-row"><span class="dl-dot" style="background:var(--postal-green)"></span>Alloué restant <b>${fmt(allocRemaining)}</b></div>
+              <div class="dl-row"><span class="dl-dot" style="background:var(--stamp-gold)"></span>Non alloué <b>${fmt(unallocated)}</b></div>
+            </div>
+          </div>` : ''}
+        </div>
+
+        <div class="section-label"><span>Enveloppes</span></div>
+        <div class="envelopes">
+          ${envelopesHtml}
+          <button class="btn-add-envelope" onclick="BudgetApp.openAddEnvelope()">+ Nouvelle enveloppe</button>
+        </div>
+
+        <div class="section-label"><span>Journal des dépenses</span></div>
+        <div class="ledger">
+          ${state.expenses.length > 3 ? `<input class="filter-input" id="expenseFilterInput" placeholder="Rechercher une dépense ou une enveloppe…" value="${escapeHtml(expenseFilter)}" />` : ''}
+          <div class="history">${historyHtml}</div>
+        </div>
+
+        <div class="section-label"><span>Archives · mois précédents</span></div>
+        <div class="archives">${archivesHtml}</div>
+
+        <div class="section-label"><span>Sauvegarde</span></div>
+        <div class="ledger">
+          <div style="font-size:12px; color: var(--ink-soft);">Exporte régulièrement une copie de secours de tes données, à garder dans tes Fichiers.</div>
+          <div class="backup-row">
+            <button class="btn-mini" onclick="BudgetApp.exportData()">⬇ Exporter</button>
+            <button class="btn-mini" onclick="document.getElementById('importFile').click()">⬆ Importer</button>
+          </div>
+          <input type="file" id="importFile" accept="application/json" style="display:none" onchange="BudgetApp.importData(event)" />
+        </div>
+
+        <div class="footer-note">
+          Tes données restent sur cet appareil (ce navigateur). Un nouveau mois démarre automatiquement le 1er,<br/>
+          en reprenant tes enveloppes et ton revenu comme modèle — l'ancien mois est archivé ci-dessus.<br/>
+          <button class="reset-link" onclick="BudgetApp.resetAll()">Réinitialiser toutes les données</button>
+        </div>
+      </div>
+      ${modalHtml()}
+    `;
+
+    document.getElementById('incomeInput').addEventListener('change', (e) => {
+      state.income = parseFloat(e.target.value) || 0;
+      saveState();
+      render();
+    });
+    const filterEl = document.getElementById('expenseFilterInput');
+    if (filterEl) {
+      filterEl.addEventListener('input', (e) => {
+        expenseFilter = e.target.value;
+        render();
+        const el = document.getElementById('expenseFilterInput');
+        if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
+      });
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function modalHtml() {
+    if (!modal) return '';
+    if (modal.type === 'expense') {
+      const env = state.envelopes.find(e => e.id === modal.envelopeId);
+      return `
+        <div class="overlay" onclick="if(event.target===this) BudgetApp.closeModal()">
+          <div class="modal">
+            <h3>Dépense · ${escapeHtml(env.name)}</h3>
+            <div class="field"><label>Montant (FCFA)</label><input id="mAmount" type="number" inputmode="numeric" autofocus /></div>
+            <div class="field"><label>Note (optionnel)</label><input id="mNote" type="text" placeholder="ex: taxi, marché..." /></div>
+            <div class="modal-actions">
+              <button class="btn-secondary" onclick="BudgetApp.closeModal()">Annuler</button>
+              <button class="btn-primary" onclick="BudgetApp.saveExpense()">Enregistrer</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    if (modal.type === 'addEnvelope' || modal.type === 'editEnvelope') {
+      const env = modal.type === 'editEnvelope' ? state.envelopes.find(e => e.id === modal.envelopeId) : null;
+      const iconsHtml = ICON_CHOICES.map(ic => `<button type="button" class="icon-opt ${ic === selectedIcon ? 'selected' : ''}" onclick="BudgetApp.pickIcon('${ic}')">${ic}</button>`).join('');
+      return `
+        <div class="overlay" onclick="if(event.target===this) BudgetApp.closeModal()">
+          <div class="modal">
+            <h3>${env ? 'Modifier' : 'Nouvelle'} enveloppe</h3>
+            <div class="field"><label>Icône</label><div class="icon-picker">${iconsHtml}</div></div>
+            <div class="field"><label>Nom</label><input id="mName" type="text" value="${env ? escapeHtml(env.name) : ''}" autofocus /></div>
+            <div class="field"><label>Montant alloué (FCFA)</label><input id="mAlloc" type="number" inputmode="numeric" value="${env ? env.allocated : ''}" /></div>
+            <div class="modal-actions">
+              <button class="btn-secondary" onclick="BudgetApp.closeModal()">Annuler</button>
+              <button class="btn-primary" onclick="BudgetApp.saveEnvelope()">Enregistrer</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    return '';
+  }
+
+  window.BudgetApp = {
+    openExpense(envelopeId) { modal = { type: 'expense', envelopeId }; render(); },
+    openAddEnvelope() { selectedIcon = '✉'; modal = { type: 'addEnvelope' }; render(); },
+    openEditEnvelope(envelopeId) {
+      const env = state.envelopes.find(e => e.id === envelopeId);
+      selectedIcon = (env && env.icon) || '✉';
+      modal = { type: 'editEnvelope', envelopeId };
+      render();
+    },
+    pickIcon(ic) { selectedIcon = ic; render(); },
+    closeModal() { modal = null; render(); },
+    toggleArchive(key) { openArchive = openArchive === key ? null : key; render(); },
+    toggleTheme() { state.theme = state.theme === 'dark' ? 'light' : 'dark'; saveState(); render(); },
+
+    saveExpense() {
+      const amount = parseFloat(document.getElementById('mAmount').value) || 0;
+      const note = document.getElementById('mNote').value.trim();
+      if (amount <= 0) return;
+      state.expenses.push({
+        id: uid(), envelopeId: modal.envelopeId, amount, note,
+        date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
+        ts: Date.now()
+      });
+      modal = null;
+      saveState();
+      render();
+    },
+
+    saveEnvelope() {
+      const name = document.getElementById('mName').value.trim();
+      const allocated = parseFloat(document.getElementById('mAlloc').value) || 0;
+      if (!name) return;
+      if (modal.type === 'editEnvelope') {
+        const env = state.envelopes.find(e => e.id === modal.envelopeId);
+        env.name = name;
+        env.allocated = allocated;
+        env.icon = selectedIcon;
+      } else {
+        state.envelopes.push({ id: uid(), name, allocated, icon: selectedIcon });
+      }
+      modal = null;
+      saveState();
+      render();
+    },
+
+    deleteEnvelope(envelopeId) {
+      state.envelopes = state.envelopes.filter(e => e.id !== envelopeId);
+      state.expenses = state.expenses.filter(x => x.envelopeId !== envelopeId);
+      saveState();
+      render();
+    },
+
+    deleteExpense(expenseId) {
+      state.expenses = state.expenses.filter(x => x.id !== expenseId);
+      saveState();
+      render();
+    },
+
+    resetAll() {
+      if (!confirm('Réinitialiser tout le budget, y compris les archives ? Cette action est irréversible.')) return;
+      state = freshMonth();
+      openArchive = null;
+      saveState();
+      render();
+    },
+
+    exportData() {
+      try {
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `budget-sauvegarde-${state.currentMonthKey}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      } catch (e) {
+        console.error('Erreur export', e);
+        alert("L'export a échoué.");
+      }
+    },
+
+    importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result);
+          if (!parsed.envelopes || !Array.isArray(parsed.envelopes)) throw new Error('format invalide');
+          if (!confirm('Remplacer toutes tes données actuelles par celles de ce fichier de sauvegarde ?')) return;
+          state = parsed;
+          if (!state.history) state.history = {};
+          if (!state.theme) state.theme = 'light';
+          state.envelopes.forEach(e => { if (!e.icon) e.icon = '✉'; });
+          archiveIfNewMonth();
+          saveState();
+          render();
+        } catch (e) {
+          alert("Ce fichier ne semble pas être une sauvegarde valide.");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+  };
+
+  loadState();
+})();
+</script>
+</body>
+</html>
